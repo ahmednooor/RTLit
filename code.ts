@@ -19,63 +19,92 @@ const SPECIAL_CHARS = { // diacritics etc.
   "\u0658": "",
 };
 
+const DIGITS = {
+  "۰": "0",
+  "۱": "1",
+  "۲": "2",
+  "۳": "3",
+  "۴": "4",
+  "۵": "5",
+  "۶": "6",
+  "۷": "7",
+  "۸": "8",
+  "۹": "9",
+  "0": "۰",
+  "1": "۱",
+  "2": "۲",
+  "3": "۳",
+  "4": "۴",
+  "5": "۵",
+  "6": "۶",
+  "7": "۷",
+  "8": "۸",
+  "9": "۹",
+};
+
 for (let node of figma.currentPage.selection) {
   if (node.type === 'TEXT') {
     figma.loadFontAsync({ family: node.fontName["family"], 
                           style: node.fontName["style"] })
     .then((_ => {
-      let charStreamArr: string[] = node["characters"].split("");
-      for (let i = 1; i < charStreamArr.length; i++) {
-        if (SPECIAL_CHARS[charStreamArr[i]] !== undefined) {
-          const tempChar = charStreamArr[i-1];
-          charStreamArr[i-1] = charStreamArr[i];
-          charStreamArr[i] = tempChar;
+      let finalStream = [];
+      // console.log(node["characters"].length);
+      
+      for (let charStream of node["characters"].split("\n")) {
+        let charStreamArr: string[] = charStream.split("");
+        for (let i = 1; i < charStreamArr.length; i++) {
+          if (SPECIAL_CHARS[charStreamArr[i]] !== undefined) {
+            const tempChar = charStreamArr[i-1];
+            charStreamArr[i-1] = charStreamArr[i];
+            charStreamArr[i] = tempChar;
+          }
         }
-      }
-      
-      let charStream: string = charStreamArr.reverse().join("")
-                               .split("\n").join("");
-
-      if (node["textAutoResize"] === "WIDTH_AND_HEIGHT") {
-        node["characters"] = charStream;
-      }
-
-      if (node["textAutoResize"] === "WIDTH_AND_HEIGHT"
-          && charStream.split("\n").length < 2) {
-        return;
-      }
-
-      let wordsArr: string[] = charStream.split(" ").reverse();
-      let linesArr: string[] = [];
-
-      let tempNode = node.clone();
-      tempNode["characters"] = wordsArr[0];
-      tempNode["textAutoResize"] = "HEIGHT";
-      let tempNodeInitialHeight = tempNode["height"];
-      tempNode["characters"] = "";
-      
-      for (const word of wordsArr) {
-        let tempCharStream: string = tempNode["characters"];
-        tempNode["characters"] += word + " ";
         
-        if (tempNode["height"] !== tempNodeInitialHeight) {
-          tempCharStream = tempCharStream.split(" ").reverse().join(" ");
-          linesArr.push(tempCharStream);
-          tempNode["characters"] = word + " ";
+        charStream = charStreamArr.reverse().join("");
+        let wordsArr: string[] = charStream.split(" ");
+
+        charStream = wordsArr.join(" ");
+        if (node["textAutoResize"] === "WIDTH_AND_HEIGHT") {
+          finalStream.push(charStream);
+          continue;
         }
+
+        wordsArr = wordsArr.reverse();
+        let tempNode = node.clone();
+        tempNode["characters"] = wordsArr[0];
+        tempNode["textAutoResize"] = "HEIGHT";
+        let tempNodeInitialHeight = tempNode["height"];
+        let linesArr: string[] = [];
+        tempNode["characters"] = "";
+        
+        for (const word of wordsArr) {
+          let tempCharStream: string = tempNode["characters"];
+          tempNode["characters"] += word;
+          
+          if (tempNode["height"] !== tempNodeInitialHeight) {
+            /* uncommenting below statement makes the total bef/aft input str 
+            len same but messes up formating */
+            // tempCharStream = tempCharStream.substr(
+            //   0, tempCharStream.length - 1);
+            tempCharStream = tempCharStream.split(" ").reverse().join(" ");
+            linesArr.push(tempCharStream);
+            tempNode["characters"] = word;
+          }
+
+          tempNode["characters"] += " ";
+        }
+
+        tempNode["characters"] = tempNode["characters"].substr(
+          0, tempNode["characters"].length - 1);
+        linesArr.push(tempNode["characters"].split(" ").reverse().join(" "));
+        charStream = linesArr.join(" ");
+        finalStream.push(charStream);
+        tempNode.remove();
       }
 
-      linesArr.push(tempNode["characters"].split(" ").reverse().join(" "));
-      charStream = linesArr.join(" ");
-      
-      charStreamArr = linesArr.join(" ").split("\n");
-      if (charStreamArr.length > 1) {
-        charStream = charStreamArr.reverse().join("\n");
-      }
-      
-      node["characters"] = charStream;
-      
-      tempNode.remove();
+      node["characters"] = finalStream.join("\n");
+
+      // console.log(node["characters"].length);
     }));
   }
 }

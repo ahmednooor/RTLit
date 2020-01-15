@@ -9,12 +9,12 @@ Behind the scenes it reverses the characters and does some other things to turn 
 1. Copy Arabic/Persian/Urdu text from a web browser or other design software such as Adobe Illustrator etc.
 2. Paste it into the Figma Text Box.
 3. Select Figma Text Box (You can select more than one at a time as well).
-4. Right Click > Plugins > RTLit
+4. `Right Click > Plugins > RTLit` or `Right Click > More > Plugins > RTLit`
 5. Done.
 
 ## Known Issues
 
-1. New lines are not supported. Any new line characters will be omitted. Use separate Text Boxes for separate texts.
+1. Numbers will also be swapped from LTR to RTL which is invalid because numbers, even in RTL languages are written as LTR. (TODO)
 2. Some fonts do not render well (But that is native behaviour I guess).
 3. There might be some more issues as this is only a hack. Behind the scenes, it reverses the characters sort of like it is mentioned here (https://help.figma.com/article/70-writing-in-other-languages) in "Use Right-To-Left (RTL) languages" section on forums.
 
