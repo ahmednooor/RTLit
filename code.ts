@@ -19,28 +19,15 @@ const SPECIAL_CHARS = { // diacritics etc.
   "\u0658": "",
 };
 
-const DIGITS = {
-  "۰": "0",
-  "۱": "1",
-  "۲": "2",
-  "۳": "3",
-  "۴": "4",
-  "۵": "5",
-  "۶": "6",
-  "۷": "7",
-  "۸": "8",
-  "۹": "9",
-  "0": "۰",
-  "1": "۱",
-  "2": "۲",
-  "3": "۳",
-  "4": "۴",
-  "5": "۵",
-  "6": "۶",
-  "7": "۷",
-  "8": "۸",
-  "9": "۹",
-};
+const LTR_CHARS = "" +
+"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+".,1234567890/*-+_=\\!@#$%^&*;?`~ ";
+
+function isPersoArabicLTRChar(char) {
+  // tells you if its numeric etc. since numbers are LTR in arabic
+  return ((char.codePointAt(0) > 1775 && char.codePointAt(0) < 1786)
+          || (char.codePointAt(0) > 1631 && char.codePointAt(0) < 1646));
+}
 
 for (let node of figma.currentPage.selection) {
   if (node.type === 'TEXT') {
@@ -52,6 +39,7 @@ for (let node of figma.currentPage.selection) {
       
       for (let charStream of node["characters"].split("\n")) {
         let charStreamArr: string[] = charStream.split("");
+        
         for (let i = 1; i < charStreamArr.length; i++) {
           if (SPECIAL_CHARS[charStreamArr[i]] !== undefined) {
             const tempChar = charStreamArr[i-1];
@@ -60,10 +48,33 @@ for (let node of figma.currentPage.selection) {
           }
         }
         
-        charStream = charStreamArr.reverse().join("");
+        charStream = "";
+        let LTRCharIndices = [];
+        
+        for (let i = 0; i < charStreamArr.length; i++) {
+          if (LTR_CHARS.includes(charStreamArr[i]) 
+              || isPersoArabicLTRChar(charStreamArr[i])) {
+            LTRCharIndices.push(i);
+            continue;
+          }
+          if (LTRCharIndices.length > 0) {
+            charStream += charStreamArr.slice(LTRCharIndices[0], i)
+                                       .reverse().join("");
+            LTRCharIndices = [];
+          }
+          charStream += charStreamArr[i];
+        }
+        if (LTRCharIndices.length > 0) {
+          charStream += charStreamArr
+            .slice(LTRCharIndices[0], LTRCharIndices[LTRCharIndices.length])
+            .reverse().join("");
+          LTRCharIndices = [];
+        }
+        
+        charStream = charStream.split("").reverse().join("");
         let wordsArr: string[] = charStream.split(" ");
-
         charStream = wordsArr.join(" ");
+
         if (node["textAutoResize"] === "WIDTH_AND_HEIGHT") {
           finalStream.push(charStream);
           continue;
