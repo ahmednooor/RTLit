@@ -19,13 +19,21 @@ const SPECIAL_CHARS = {
 };
 const LTR_CHARS = "" +
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-    ".,1234567890/*-+_=\\!@#$%^&*;?`~ ";
+    ".,1234567890/*-+_=\\!@#$%^&*;?`~ ()[]{}<>|";
 function isPersoArabicLTRChar(char) {
     // tells you if its numeric etc. since numbers are LTR in arabic
-    return ((char.codePointAt(0) > 1775 && char.codePointAt(0) < 1786)
-        || (char.codePointAt(0) > 1631 && char.codePointAt(0) < 1646));
+    return (char.codePointAt(0) > 1775 && char.codePointAt(0) < 1786)
+        || (char.codePointAt(0) > 1631 && char.codePointAt(0) < 1646);
+}
+function isLTRChar(char) {
+    return LTR_CHARS.includes(char)
+        || isPersoArabicLTRChar(char);
 }
 for (let node of figma.currentPage.selection) {
+    if (node.type !== 'TEXT') {
+        figma.closePlugin("Please select a text box that contains Perso-Arabic text " +
+            "and re-run the plugin.");
+    }
     if (node.type === 'TEXT') {
         figma.loadFontAsync({ family: node.fontName["family"],
             style: node.fontName["style"] })
@@ -34,6 +42,8 @@ for (let node of figma.currentPage.selection) {
             // console.log(node["characters"].length);
             for (let charStream of node["characters"].split("\n")) {
                 let charStreamArr = charStream.split("");
+                /* make sure special chars such as diacritics shouldn't be reversed
+                   since they come after a char not before */
                 for (let i = 1; i < charStreamArr.length; i++) {
                     if (SPECIAL_CHARS[charStreamArr[i]] !== undefined) {
                         const tempChar = charStreamArr[i - 1];
@@ -41,11 +51,12 @@ for (let node of figma.currentPage.selection) {
                         charStreamArr[i] = tempChar;
                     }
                 }
+                /* ------------------------------------------------------ */
                 charStream = "";
                 let LTRCharIndices = [];
+                /* make sure LTR chars such as English or arabic numerals remain LTR */
                 for (let i = 0; i < charStreamArr.length; i++) {
-                    if (LTR_CHARS.includes(charStreamArr[i])
-                        || isPersoArabicLTRChar(charStreamArr[i])) {
+                    if (isLTRChar(charStreamArr[i])) {
                         LTRCharIndices.push(i);
                         continue;
                     }
@@ -62,6 +73,7 @@ for (let node of figma.currentPage.selection) {
                         .reverse().join("");
                     LTRCharIndices = [];
                 }
+                /* ------------------------------------------------------ */
                 charStream = charStream.split("").reverse().join("");
                 let wordsArr = charStream.split(" ");
                 charStream = wordsArr.join(" ");
@@ -75,23 +87,21 @@ for (let node of figma.currentPage.selection) {
                 tempNode["textAutoResize"] = "HEIGHT";
                 let tempNodeInitialHeight = tempNode["height"];
                 let linesArr = [];
+                let lineWords = [];
                 tempNode["characters"] = "";
+                /* reverse words/lines in a way that is readable from top to bottom */
                 for (const word of wordsArr) {
-                    let tempCharStream = tempNode["characters"];
                     tempNode["characters"] += word;
                     if (tempNode["height"] !== tempNodeInitialHeight) {
-                        /* uncommenting below statement makes the total bef/aft input str
-                        len same but messes up formating */
-                        // tempCharStream = tempCharStream.substr(
-                        //   0, tempCharStream.length - 1);
-                        tempCharStream = tempCharStream.split(" ").reverse().join(" ");
-                        linesArr.push(tempCharStream);
+                        linesArr.push(lineWords.reverse().join(" "));
                         tempNode["characters"] = word;
+                        lineWords = [];
                     }
                     tempNode["characters"] += " ";
+                    lineWords.push(word);
                 }
-                tempNode["characters"] = tempNode["characters"].substr(0, tempNode["characters"].length - 1);
-                linesArr.push(tempNode["characters"].split(" ").reverse().join(" "));
+                linesArr.push(lineWords.reverse().join(" "));
+                /* ------------------------------------------------------ */
                 charStream = linesArr.join(" ");
                 finalStream.push(charStream);
                 tempNode.remove();
@@ -103,4 +113,4 @@ for (let node of figma.currentPage.selection) {
 }
 // Make sure to close the plugin when you're done. Otherwise the plugin will
 // keep running, which shows the cancel button at the bottom of the screen.
-figma.closePlugin();
+figma.closePlugin("Text Updated. Press Ctrl+z to undo.");
