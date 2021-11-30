@@ -16,7 +16,7 @@ const SPECIAL_CHARS = {
     "\u0655": "",
     "\u0656": "",
     "\u0657": "",
-    "\u0658": ""
+    "\u0658": "",
 };
 const LTR_CHARS = "" +
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" +
@@ -29,12 +29,12 @@ function isPersoArabicLTRChar(char) {
 function isLTRChar(char) {
     return LTR_CHARS.includes(char) || isPersoArabicLTRChar(char);
 }
-function isAllNonPersoArabic(text) {
+function containsPersoArabicChars(text) {
     for (const char of text) {
         const charCode = char.codePointAt(0);
         /* start/end codes (converted from hex to dec versions of unicode)
-           courtesy for unicode hex codes:
-           https://en.wikipedia.org/wiki/Arabic_script_in_Unicode */
+          courtesy for unicode hex codes:
+          https://en.wikipedia.org/wiki/Arabic_script_in_Unicode */
         const isArabic = charCode >= 1536 && charCode <= 1791;
         const isArabicSupplement = charCode >= 1872 && charCode <= 1919;
         const isArabicExtendedA = charCode >= 2208 && charCode <= 2303;
@@ -53,14 +53,14 @@ function isAllNonPersoArabic(text) {
             isIndicSiyaq ||
             isOttomanSiyaq ||
             isArabicMathAlphabet) {
-            return false;
+            return true;
         }
     }
-    return true;
+    return false;
 }
 function offsetSpecialCharsForReversal(charStreamArr) {
     /* make sure special chars such as diacritics shouldn't be reversed
-       since they come after a char not before */
+         since they come after a char not before */
     for (let i = 1; i < charStreamArr.length; i++) {
         if (SPECIAL_CHARS[charStreamArr[i]] !== undefined) {
             const tempChar = charStreamArr[i - 1];
@@ -80,84 +80,101 @@ function breakLTRAndRTLParts(charStreamArr) {
             continue;
         }
         if (LTRCharIndices.length > 0) {
-            brokenLTRAndRTLParts.push(charStreamArr
-                .slice(LTRCharIndices[0], i).reverse().join(""));
+            brokenLTRAndRTLParts.push(charStreamArr.slice(LTRCharIndices[0], i).reverse().join(""));
             LTRCharIndices = [];
         }
-        brokenLTRAndRTLParts[brokenLTRAndRTLParts.length - 1] +=
-            charStreamArr[i];
+        brokenLTRAndRTLParts[brokenLTRAndRTLParts.length - 1] += charStreamArr[i];
     }
     if (LTRCharIndices.length > 0) {
         brokenLTRAndRTLParts.push(charStreamArr
             .slice(LTRCharIndices[0], LTRCharIndices[LTRCharIndices.length])
-            .reverse().join(""));
+            .reverse()
+            .join(""));
         LTRCharIndices = [];
     }
     return brokenLTRAndRTLParts;
 }
-for (let node of figma.currentPage.selection) {
-    if (node.type !== "TEXT") {
-        figma.closePlugin("Please select a text box that contains Perso-Arabic text " +
-            "and re-run the plugin.");
+function main(figma) {
+    let taskPromises = [];
+    let notificationHandler;
+    if (figma.currentPage.selection.length < 1) {
+        notificationHandler === null || notificationHandler === void 0 ? void 0 : notificationHandler.cancel();
+        notificationHandler = figma.notify("Please select a text box that contains Perso-Arabic text " +
+            "and re-run the plugin.", { error: true });
     }
-    if (node.type === "TEXT" && isAllNonPersoArabic(node["characters"])) {
-        figma.closePlugin("The selected text box does not contain Perso-Arabic text. " +
-            "Please try again with Perso-Arabic text.");
-    }
-    if (node.type === "TEXT") {
-        figma.loadFontAsync({
-            family: node.fontName["family"],
-            style: node.fontName["style"]
-        }).then(_ => {
-            // console.log(node["characters"].length);
-            let finalStream = [];
-            for (let charStream of node["characters"].split("\n")) {
-                let charStreamArr = offsetSpecialCharsForReversal(charStream.split(""));
-                let brokenLTRAndRTLParts = breakLTRAndRTLParts(charStreamArr);
-                charStream = brokenLTRAndRTLParts.join("");
-                /* simple case of single-line. reverse all chars */
-                if (node["textAutoResize"] === "WIDTH_AND_HEIGHT") {
-                    finalStream.push(charStream.split("").reverse().join(""));
-                    continue;
-                }
-                /* complex case of multi-line.
-                   reverse in a way that is readable from top to bottom */
-                let tempNode = node.clone();
-                tempNode["characters"] = charStream.split(" ")[0];
-                tempNode["textAutoResize"] = "HEIGHT";
-                let tempNodeInitialHeight = tempNode["height"];
-                let linesArr = [];
-                tempNode["characters"] = "";
-                for (const char of charStream) {
-                    tempNode["characters"] = char + tempNode["characters"];
-                    if (tempNode["height"] > tempNodeInitialHeight) {
-                        let charStreamToPush = tempNode["characters"];
-                        let charStreamToPushWords = charStreamToPush.split(" ");
-                        if (charStreamToPushWords.length > 1) {
-                            tempNode["characters"] =
-                                charStreamToPushWords[0];
-                            charStreamToPush = charStreamToPushWords
-                                .slice(1, charStreamToPushWords.length)
-                                .join(" ");
-                        }
-                        else {
-                            tempNode["characters"] =
-                                charStreamToPush.substring(0, 1);
-                            charStreamToPush = charStreamToPush.substring(1, charStreamToPush.length);
-                        }
-                        linesArr.push(charStreamToPush);
+    for (let node of figma.currentPage.selection) {
+        if (node.type !== "TEXT") {
+            notificationHandler === null || notificationHandler === void 0 ? void 0 : notificationHandler.cancel();
+            notificationHandler = figma.notify("Please select a text box that contains Perso-Arabic text " +
+                "and re-run the plugin.", { error: true });
+        }
+        if (node.type === "TEXT" && !containsPersoArabicChars(node["characters"])) {
+            notificationHandler === null || notificationHandler === void 0 ? void 0 : notificationHandler.cancel();
+            notificationHandler = figma.notify("The selected text box does not contain Perso-Arabic text. " +
+                "Please try again with Perso-Arabic text.", { error: true });
+        }
+        if (node.type === "TEXT") {
+            taskPromises.push(figma
+                .loadFontAsync({
+                family: node.fontName["family"],
+                style: node.fontName["style"],
+            })
+                .then((_) => {
+                // console.log(node["characters"].length);
+                let finalStream = [];
+                for (let charStream of node["characters"].split("\n")) {
+                    let charStreamArr = offsetSpecialCharsForReversal(charStream.split(""));
+                    let brokenLTRAndRTLParts = breakLTRAndRTLParts(charStreamArr);
+                    charStream = brokenLTRAndRTLParts.join("");
+                    /* simple case of single-line. reverse all chars */
+                    if (node["textAutoResize"] === "WIDTH_AND_HEIGHT") {
+                        finalStream.push(charStream.split("").reverse().join(""));
+                        continue;
                     }
+                    /* complex case of multi-line.
+                           reverse in a way that is readable from top to bottom */
+                    let tempNode = node.clone();
+                    tempNode["characters"] = charStream.split(" ")[0];
+                    tempNode["textAutoResize"] = "HEIGHT";
+                    let tempNodeInitialHeight = tempNode["height"];
+                    let linesArr = [];
+                    tempNode["characters"] = "";
+                    for (const char of charStream) {
+                        tempNode["characters"] = char + tempNode["characters"];
+                        if (tempNode["height"] > tempNodeInitialHeight) {
+                            let charStreamToPush = tempNode["characters"];
+                            let charStreamToPushWords = charStreamToPush.split(" ");
+                            if (charStreamToPushWords.length > 1) {
+                                tempNode["characters"] = charStreamToPushWords[0];
+                                charStreamToPush = charStreamToPushWords
+                                    .slice(1, charStreamToPushWords.length)
+                                    .join(" ");
+                            }
+                            else {
+                                tempNode["characters"] = charStreamToPush.substring(0, 1);
+                                charStreamToPush = charStreamToPush.substring(1, charStreamToPush.length);
+                            }
+                            linesArr.push(charStreamToPush);
+                        }
+                    }
+                    linesArr.push(tempNode["characters"]);
+                    charStream = linesArr.join("\n");
+                    finalStream.push(charStream);
+                    tempNode.remove();
                 }
-                linesArr.push(tempNode["characters"]);
-                charStream = linesArr.join("\n");
-                finalStream.push(charStream);
-                tempNode.remove();
-            }
-            node["characters"] = finalStream.join("\n");
-            // console.log(node["characters"].length);
-        });
+                node["characters"] = finalStream.join("\n");
+                // console.log(node["characters"].length);
+                notificationHandler === null || notificationHandler === void 0 ? void 0 : notificationHandler.cancel();
+                notificationHandler = figma.notify("Text Updated. Press Ctrl+z to undo.");
+            })
+                .catch((_) => {
+                notificationHandler === null || notificationHandler === void 0 ? void 0 : notificationHandler.cancel();
+                notificationHandler = figma.notify("Sorry! Couldn't load the selected font.", {
+                    error: true,
+                });
+            }));
+        }
     }
+    Promise.all(taskPromises).then((_) => figma.closePlugin());
 }
-// Make sure to close the plugin when you're done. Otherwise the plugin will
-// keep running, which shows the cancel button at the bottom of the screen.
-figma.closePlugin("Text Updated. Press Ctrl+z to undo.");
+main(figma);

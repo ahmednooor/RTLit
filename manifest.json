@@ -2,5 +2,6 @@
   "name": "RTLit",
   "id": "798575277354069347",
   "api": "1.0.0",
-  "main": "code.js"
+  "main": "code.js",
+  "editorType": ["figma", "figjam"]
 }
