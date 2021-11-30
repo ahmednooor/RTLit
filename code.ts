@@ -136,6 +136,7 @@ function main(figma: PluginAPI) {
           "and re-run the plugin.",
         { error: true }
       );
+      continue;
     }
 
     if (node.type === "TEXT" && !containsPersoArabicChars(node["characters"])) {
@@ -145,87 +146,86 @@ function main(figma: PluginAPI) {
           "Please try again with Perso-Arabic text.",
         { error: true }
       );
+      continue;
     }
 
-    if (node.type === "TEXT") {
-      taskPromises.push(
-        figma
-          .loadFontAsync({
-            family: node.fontName["family"],
-            style: node.fontName["style"],
-          })
-          .then((_) => {
-            // console.log(node["characters"].length);
-            let finalStream = [];
-            for (let charStream of node["characters"].split("\n")) {
-              let charStreamArr = offsetSpecialCharsForReversal(
-                charStream.split("")
-              );
-              let brokenLTRAndRTLParts = breakLTRAndRTLParts(charStreamArr);
-              charStream = brokenLTRAndRTLParts.join("");
+    taskPromises.push(
+      figma
+        .loadFontAsync({
+          family: node.fontName["family"],
+          style: node.fontName["style"],
+        })
+        .then((_) => {
+          // console.log(node["characters"].length);
+          let finalStream = [];
+          for (let charStream of node["characters"].split("\n")) {
+            let charStreamArr = offsetSpecialCharsForReversal(
+              charStream.split("")
+            );
+            let brokenLTRAndRTLParts = breakLTRAndRTLParts(charStreamArr);
+            charStream = brokenLTRAndRTLParts.join("");
 
-              /* simple case of single-line. reverse all chars */
-              if (node["textAutoResize"] === "WIDTH_AND_HEIGHT") {
-                finalStream.push(charStream.split("").reverse().join(""));
-                continue;
-              }
-
-              /* complex case of multi-line. 
-                     reverse in a way that is readable from top to bottom */
-              let tempNode = node.clone();
-              tempNode["characters"] = charStream.split(" ")[0];
-              tempNode["textAutoResize"] = "HEIGHT";
-              let tempNodeInitialHeight = tempNode["height"];
-              let linesArr = [];
-              tempNode["characters"] = "";
-
-              for (const char of charStream) {
-                tempNode["characters"] = char + tempNode["characters"];
-
-                if (tempNode["height"] > tempNodeInitialHeight) {
-                  let charStreamToPush = tempNode["characters"];
-                  let charStreamToPushWords = charStreamToPush.split(" ");
-
-                  if (charStreamToPushWords.length > 1) {
-                    tempNode["characters"] = charStreamToPushWords[0];
-                    charStreamToPush = charStreamToPushWords
-                      .slice(1, charStreamToPushWords.length)
-                      .join(" ");
-                  } else {
-                    tempNode["characters"] = charStreamToPush.substring(0, 1);
-                    charStreamToPush = charStreamToPush.substring(
-                      1,
-                      charStreamToPush.length
-                    );
-                  }
-                  linesArr.push(charStreamToPush);
-                }
-              }
-              linesArr.push(tempNode["characters"]);
-              charStream = linesArr.join("\n");
-
-              finalStream.push(charStream);
-              tempNode.remove();
+            /* simple case of single-line. reverse all chars */
+            if (node["textAutoResize"] === "WIDTH_AND_HEIGHT") {
+              finalStream.push(charStream.split("").reverse().join(""));
+              continue;
             }
-            node["characters"] = finalStream.join("\n");
-            // console.log(node["characters"].length);
 
-            notificationHandler?.cancel();
-            notificationHandler = figma.notify(
-              "Text Updated. Press Ctrl+z to undo."
-            );
-          })
-          .catch((_) => {
-            notificationHandler?.cancel();
-            notificationHandler = figma.notify(
-              "Sorry! Couldn't load the selected font.",
-              {
-                error: true,
+            /* complex case of multi-line. 
+                     reverse in a way that is readable from top to bottom */
+            let tempNode = node.clone();
+            tempNode["characters"] = charStream.split(" ")[0];
+            tempNode["textAutoResize"] = "HEIGHT";
+            let tempNodeInitialHeight = tempNode["height"];
+            let linesArr = [];
+            tempNode["characters"] = "";
+
+            for (const char of charStream) {
+              tempNode["characters"] = char + tempNode["characters"];
+
+              if (tempNode["height"] > tempNodeInitialHeight) {
+                let charStreamToPush = tempNode["characters"];
+                let charStreamToPushWords = charStreamToPush.split(" ");
+
+                if (charStreamToPushWords.length > 1) {
+                  tempNode["characters"] = charStreamToPushWords[0];
+                  charStreamToPush = charStreamToPushWords
+                    .slice(1, charStreamToPushWords.length)
+                    .join(" ");
+                } else {
+                  tempNode["characters"] = charStreamToPush.substring(0, 1);
+                  charStreamToPush = charStreamToPush.substring(
+                    1,
+                    charStreamToPush.length
+                  );
+                }
+                linesArr.push(charStreamToPush);
               }
-            );
-          })
-      );
-    }
+            }
+            linesArr.push(tempNode["characters"]);
+            charStream = linesArr.join("\n");
+
+            finalStream.push(charStream);
+            tempNode.remove();
+          }
+          node["characters"] = finalStream.join("\n");
+          // console.log(node["characters"].length);
+
+          notificationHandler?.cancel();
+          notificationHandler = figma.notify(
+            "Text Updated. Press Ctrl+z to undo."
+          );
+        })
+        .catch((_) => {
+          notificationHandler?.cancel();
+          notificationHandler = figma.notify(
+            "Sorry! Couldn't load the selected font.",
+            {
+              error: true,
+            }
+          );
+        })
+    );
   }
 
   Promise.all(taskPromises).then((_) => figma.closePlugin());
